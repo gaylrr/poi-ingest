@@ -5,7 +5,8 @@ const {validateRow} = require('./validator')
 const {uploadPOI} = require('./uploader')
 const {generateReport} = require('./reporter')
 const {chunk, sleep} = require('./utils')
-const {info, done, warning, errlog } = require('./logger')
+const {info, success, warning, errlog } = require('./logger')
+const { getRegionByProvince } = require('./regionMap');
 
 const batch_size = 500 //sends 500 rows at a time 
 const batch_delay = 0 //wait 0 ms between batches
@@ -28,11 +29,11 @@ if (!DRY_RUN && !API_URL) {
     errlog('API_URL is invalid.')
     process.exit(1)
 }
-const filePath = process.argv[2] //the 3rd word that is typed should be the --dry-run
+const filePath = process.argv.slice(2).find(arg => !arg.startsWith('--')) // array of everything that is typed || does not care about order
     if (!filePath) {
         errlog('Please provide a CSV file: (path)')
         process.exit(1)
-    }
+}
 const run = async () => {
     const startTime = Date.now()
     info(`Reading file: ${filePath}`)
@@ -41,13 +42,18 @@ const run = async () => {
     const batches = chunk(rows, batch_size)
     const results = []
 
-    info(`${rows.length} rows - split into ${batches.length} batch`)
-    if (DRY_RUN) warning('DRY_RUN: no data will be sent to the API')
+    info(`${rows.length} rows - split into ${batches.length} batches`)
+    if (DRY_RUN) warning('DRY_RUN: no data will be sent to the API') // only required if not dry-run since it will skip the api call
 
     for (let b = 0; b < batches.length; b++) {
         const batch = batches [b]
 
         for (const[i, row] of batch.entries()) {
+            row.barangay = row.barangay || 'N/A'
+            row.province = row.province || 'N/A'
+            if (!row.region || row.region.trim() === '') {
+                row.region = getRegionByProvince(row.province) || ''
+            }
             const {valid, errors} = validateRow(row, i)
 
         if (!valid) {

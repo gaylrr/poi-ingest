@@ -9,7 +9,7 @@ const info = (msg) => {
     console.log(`${CYAN}${BOLD}[INFO]${RESET} ${msg}`) // keep you udpated 
 };
 
-const done = (success) => {
+const success = (success) => {
     console.log(`${GREEN}${BOLD}[SUCCESS]${RESET} ${success}`) // prints when something worked/successful  
 };
 
@@ -23,7 +23,7 @@ const errlog = (error) => {
 
 module.exports = {
     info,
-    done,
+    success,
     warning,
     errlog
 };

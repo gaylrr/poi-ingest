@@ -19,4 +19,3 @@ node src/index.js yourfile.csv
 Used AI to understand async/await concepts
 Used AI to research exponential backoff pattern
 Used AI to look up csv-parse documentation
-All code was written manually

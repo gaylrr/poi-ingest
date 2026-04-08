@@ -1,9 +1,11 @@
-const fs = require ('fs') // calls file-system from node.js, read file
+const fs = require('fs')
 
-const generateReport = (results, startTime) => { // calculation of how long the whole thing takes 
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2) // current time in ms | round to 2 decimal places
+const escapeCsv = (val) => String(val ?? '').replace(/"/g, '""')
+
+const generateReport = (results, startTime) => {
+    const duration = ((Date.now() - startTime) / 1000).toFixed(2)
     const total = results.length
-    const success  = results.filter(r => r.success).length //it keeps the filtered success item
+    const success = results.filter(r => r.success).length
     const failed = total - success
 
     console.log('\n========== SUMMARY ==========')
@@ -13,17 +15,17 @@ const generateReport = (results, startTime) => { // calculation of how long the 
     console.log(`Duration: ${duration}s`)
     console.log('==============================\n')
 
-    const failures = results.filter(r => !r.success) // states the failure if any
+    const failures = results.filter(r => !r.success)
 
-    if (failures.length > 0) { // counts the failure and add it in the failure.csv file
-        const lines = ['name,reason'] // CSV header row
+    if (failures.length > 0) {
+        const lines = ['name,reason']
         for (const f of failures) {
-            lines.push(`"${f.row.name}","${f.reason}"`)
+            const name = f.row?.name ?? 'UNKNOWN'
+            lines.push(`"${escapeCsv(name)}","${escapeCsv(f.reason)}"`)
         }
-        fs.writeFileSync('failures.csv', lines.join('\n')) //connect all lines with a newline between data
+        fs.writeFileSync('failures.csv', lines.join('\n'))
         console.log(`failures.csv written with ${failures.length} record(s)`)
     }
 }
-module.exports = {
-    generateReport
-}
+
+module.exports = { generateReport }

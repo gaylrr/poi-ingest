@@ -1,45 +1,55 @@
-const {sleep} = require ('./utils')
+const { sleep } = require('./utils')
 
 const uploadPOI = async (row, apiUrl, apiKey, dryRun) => {
     const body = {
         name: row.name,
-        lat: parseFloat(row.latitude),
-        lng: parseFloat(row.longitude),
+        lat: parseFloat((row.latitude || '').replace(/,/g, '')),
+        lng: parseFloat((row.longitude || '').replace(/,/g, '')),
         category: row.category,
-        landmark: row.landmark || '', // use empty string instead of crashing 
-        address: row.address,
-        barangay: row.barangay,
+        address: [row.barangay, row.city, row.province]
+            .filter(v => v && v.trim() !== '' && v.trim() !== 'N/A')
+            .join(', ') || 'N/A',
+        barangay: row.barangay || 'N/A',
         city: row.city,
-        province: row.province || '',
-        region: row.region || ''
+        province: row.province || 'N/A',
+        region: row.region || 'N/A',
     }
 
-if (dryRun) {
-    return { success: true, dryRun: true }
-}
-let attempt = 0;
-const maxRetries = 3;
+    if (dryRun) {
+        return { success: true, dryRun: true }
+    }
+    let attempt = 0;
+    const maxRetries = 3;
 
-while(attempt < maxRetries) {
-    const res = await fetch (`${apiUrl}/api/pois`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
+while (attempt < maxRetries) {
+    try {
+        const res = await fetch(`${apiUrl}/api/pois`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': apiKey
         },
-        body: JSON.stringify(body)
-    });
-    if (res.ok) return {success:true}
+            body: JSON.stringify(body)
+        });
 
-    if (res.status === 429 || res.status >= 500){
+        if (res.ok) return { success: true }
+
+        if (res.status === 429 || res.status >= 500) {
+            attempt++
+            const waitMs = 500 * Math.pow(2, attempt)
+            await sleep(waitMs)
+            continue;
+        }
+
+        return { success: false, reason: `HTTP ${res.status}` }
+
+    } catch (err) {
         attempt++
-        const waitMs= 500 * Math.pow(2, attempt)
-        await sleep(waitMs)
+        await sleep(500 * Math.pow(2, attempt))
         continue;
+        }
     }
-    return {success: false , reason: `HTTP ${res.status}`}
+return { success: false, reason: 'max retries exceeded' }
 }
-    return {success: false, reason: 'max retries exceeded'}
-}
-module.exports = {uploadPOI}
 
+module.exports = { uploadPOI }
