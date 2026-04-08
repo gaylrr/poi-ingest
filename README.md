@@ -62,7 +62,16 @@ cd poi-ingest
 npm install
 5. Create your `.env` file (see Setup above)
 
-## Pushing Changes to GitHub
+# Environment set up
+  Create a `.env` file in the backend root directory:
+
+   ```env
+POI_API_KEY = POI_API_KEY=your-api-key-here
+POI_API_URL =https://dmap-api.inovers.dev
+IMPORT_MODE = test
+the 'test' for hard coded validation
+
+# Pushing Changes to GitHub
 
 # First time setup
 git init
