@@ -19,9 +19,6 @@ node src/index.js yourfile.csv
 Used AI to understand async/await concepts
 Used AI to research exponential backoff pattern
 Used AI to look up csv-parse documentation
-<<<<<<< HEAD
-=======
-All code was written manually
 
 ## Validation
 The validator runs 4 checks on every row:
@@ -94,4 +91,3 @@ node_modules/
 .env.local
 failures.csv
 bad-data.csv
->>>>>>> e4e62be (README file)
