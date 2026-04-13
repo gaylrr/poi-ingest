@@ -26,10 +26,13 @@ The validator runs 4 checks on every row:
 1. Auto-fix — fills blank `barangay` and `province` with `N/A`
 2. Clean coordinates — strips stray characters from lat/lng
 3. Required fields — rejects rows missing name, latitude, longitude, category, or city
-4. Coordinate bounds — rejects coordinates outside the Philippines
+4. Coordinate bounds — all merchant or national 
+5. detect and fix swapping coordinates
+6. fixing missing decimal point
 
 # Output
 After each run, the terminal shows a summary:
+sample:
 ========== SUMMARY ==========
 Total:    22104
 Success:  21950

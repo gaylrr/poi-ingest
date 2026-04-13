@@ -102,12 +102,12 @@ const run = () => {
     })
 
     // Save failures to CSV
-    if (failures.length > 0) {
-        const header = 'name,reason,value\n'
-        const lines = failures.map(f => `"${f.name}","${f.reason}","${f.value}"`).join('\n')
-        fs.writeFileSync('./src/failure.csv', header + lines, 'utf-8')
-        console.log(`Failures saved to ./src/failure.csv (${failures.length} rows)`)
-    }
+    // if (failures.length > 0) {
+    //     const header = 'name,reason,value\n'
+    //     const lines = failures.map(f => `"${f.name}","${f.reason}","${f.value}"`).join('\n')
+    //     fs.writeFileSync('./src/failure.csv', header + lines, 'utf-8')
+    //     console.log(`Failures saved to ./src/failure.csv (${failures.length} rows)`)
+    // }
 }
 
 run()
