@@ -9,8 +9,13 @@ const chunk = (array, size) => { //splitsarray into smaller batches
     }
     return result;
 }
+const sleepWithJitter = (ms, jitter = 50) => {
+    const randomJitter = Math.floor(Math.random() * jitter)
+    return sleep(ms + randomJitter)
+}
 
 module.exports = {
     sleep,
-    chunk
+    chunk, 
+    sleepWithJitter
 }

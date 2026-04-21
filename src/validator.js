@@ -7,9 +7,9 @@ const validateRow = (row, index) => {
     const errors = [];  
     // remove anything that is a number
     row.latitude = row.latitude?.toString().trim()
-    .replace(/[^\d.-]/g, '')
-    .replace(/^0+(\d)/, '$1')
-    .replace(/(\.\d+)\..*$/, '$1')
+    .replace(/[^\d.-]/g, '') // remove anything that is not number, dot, or minus
+    .replace(/^0+(\d)/, '$1') // remove 0 in the start
+    .replace(/(\.\d+)\..*$/, '$1') // remove extra dots
 
     row.longitude = row.longitude?.toString().trim()
     .replace(/[^\d.-]/g, '')
@@ -43,7 +43,7 @@ const validateRow = (row, index) => {
                 row.latitude = fixed.toString()
             }
         }
-        const fixMissingDecimal = (val, isLng) => {
+        const fixMissingDecimal = (val, isLng) => { //handles coordinates stored without decimal point  
             const num = parseFloat(val)
             if(isNaN(num) || val?.includes('.')) return val
             const str = val.toString()
@@ -60,7 +60,7 @@ const validateRow = (row, index) => {
         row.longitude = fixMissingDecimal(row.longitude, true)
     }
 
-    for (const field of REQUIRED_FIELDS) {
+    for (const field of REQUIRED_FIELDS) { //check all required fields
         if(!row[field] || row[field].trim() === '') {
             errors.push(`missing field: ${field}`)
     }

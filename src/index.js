@@ -1,97 +1,113 @@
 require ('dotenv').config()
 
+const { Command } = require('commander')
+const pLimit = require ('p-limit')
 const {parseCSV} = require('./parser')
 const {validateRow} = require('./validator')
 const {uploadPOI} = require('./uploader')
 const {generateReport} = require('./reporter')
-const {chunk, sleep} = require('./utils')
+const {chunk, sleepWithJitter} = require('./utils')        // ← removed unused 'sleep'
 const {info, success, warning, errlog } = require('./logger')
-const { getRegionByProvince } = require('./regionMap');
-
-const batch_size = 50 //sends 50 rows at a time 
-const batch_delay = 250 //wait 250 ms between batches
+const { getRegionByProvince } = require('./regionMap')
 
 const API_URL = process.env.POI_API_URL
 const API_KEY = process.env.POI_API_KEY
 const IMPORT_MODE = process.env.IMPORT_MODE
-const DRY_RUN = process.argv.includes('--dry-run') // list of words that is typed in the terminal
 
-if(IMPORT_MODE !== 'test') {
+const program = new Command
+
+program
+    .name('poi-ingest')
+    .description('POI Ingestion CLI tool')
+    .version('1.0.0')
+    .argument('<file>', 'CSV file to import')
+    .option('--dry-run', 'simulate without API calls')
+    .option('--batch-size <numbers>', 'number of row per batch', '25')
+    .option('--cooldown <ms>', 'cooldown between batches in ms', '250')
+    .option('--concurrency <number>', 'parallel batches at once', '3')
+    .parse(process.argv)
+
+const batch_size  = parseInt(program.opts().batchSize)
+const batch_delay = parseInt(program.opts().cooldown)
+const concurrency = parseInt(program.opts().concurrency)
+const filePath    = program.args[0]
+const DRY_RUN     = program.opts().dryRun
+
+// ── SAFETY GUARDRAIL ──
+if (IMPORT_MODE !== 'test') {
     errlog('IMPORT_MODE must be "test". Aborting for safety.')
-    process.exit(1) //stop everything
-};
+    process.exit(1)
+}
+// ─────────────────────
 
-if (!DRY_RUN && !API_KEY) {
-    errlog('API_KEY is missing.')
-    process.exit(1)
-}
-if (!DRY_RUN && !API_URL) {
-    errlog('API_URL is invalid.')
-    process.exit(1)
-}
-const filePath = process.argv.slice(2).find(arg => !arg.startsWith('--')) // array of everything that is typed || does not care about order
-    if (!filePath) {
-        errlog('Please provide a CSV file: (path)')
-        process.exit(1)
-}
+if (!DRY_RUN && !API_KEY) { errlog('API_KEY is missing.'); process.exit(1) }
+if (!DRY_RUN && !API_URL) { errlog('API_URL is invalid.'); process.exit(1) }
+
 const run = async () => {
     const startTime = Date.now()
     info(`Reading file: ${filePath}`)
 
-    const rows = parseCSV(filePath)
+    const rows    = parseCSV(filePath)
     const batches = chunk(rows, batch_size)
     const results = []
 
     info(`${rows.length} rows - split into ${batches.length} batches`)
-    if (DRY_RUN) warning('DRY_RUN: no data will be sent to the API') // only required if not dry-run since it will skip the api call
+    if (DRY_RUN) warning('DRY_RUN: no data will be sent to the API')
 
+    const limit = pLimit(concurrency)
 
-  for (let b = 0; b < batches.length; b++) {
-        const batch = batches[b]
-        let batchSuccess = 0
-        let batchFailed = 0
+    const batchTasks = batches.map((batch, b) => {
+        return limit(async () => {
+            let batchSuccess = 0
+            let batchFailed  = 0
 
-            
-        // const batchResults = await Promise.all(batch.map(async (row, i) => {
-            for (const[i, row] of batch.entries()) {
-            row.barangay = row.barangay || 'N/A'
-            row.province = row.province || 'N/A'
-            if (!row.region || row.region.trim() === '') {
-                row.region = getRegionByProvince(row.province) || ''
+            for (const [i, row] of batch.entries()) {
+                row.barangay = row.barangay || 'N/A'
+                row.province = row.province || 'N/A'
+                if (!row.region || row.region.trim() === '') {
+                    row.region = getRegionByProvince(row.province) || ''
+                }
+
+                const { valid, errors } = validateRow(row, i)
+
+                if (!valid) {
+                    results.push({ success: false, row, reason: errors.join(', ') })
+                    batchFailed++
+                    continue
+                }
+
+                try {
+                    const result = await uploadPOI(row, API_URL, API_KEY, DRY_RUN)
+                    result.row = row
+                    results.push(result)
+                    batchSuccess++
+                } catch (err) {
+                    errlog(`Row ${i} upload failed: ${err.message}`)
+                    results.push({ success: false, row, reason: err.message })
+                    batchFailed++
+                }
             }
 
-            const {valid, errors} = validateRow(row, i)
-
-            if (!valid) {
-                results.push ({success: false, row, reason: errors.join(', ')})
-                batchFailed++
-                continue
+            // ── batch progress ──
+            if (batchFailed === 0) {
+                success(`Batch ${b + 1}/${batches.length} — ${batchSuccess}/${batch.length}`)
+            } else {
+                info(`Batch ${b + 1}/${batches.length} — ${batchSuccess}/${batch.length}`)
             }
 
-            try {
-                const result = await uploadPOI(row, API_URL, API_KEY, DRY_RUN)
-                result.row = row
-                results.push(result)
-                batchSuccess++
-            } catch (err) {
-                errlog(`Row ${i} upload failed: ${err.message}`)
-                results.push({success: false, row, reason: err.message})
-                batchFailed++
+            // ── cooldown with jitter ──
+            if (b < batches.length - 1) {
+                info(`Cooldown ${batch_delay}ms`)
+                await sleepWithJitter(batch_delay)
             }
-          }
-        // const batchSuccess = results.filter(r => r.success).length
-        // const batchFailed = batch.length - batchSuccess
-        // results.push(...batchResults)
-        info(`Batch ${b + 1}/${batches.length} done - ${batchSuccess} success`)
+        })
+    })
 
-        if (b < batches.length - 1) 
-            info (`Cooldown ${batch_delay} ms`) 
-            await sleep(batch_delay)
-    }
+    await Promise.all(batchTasks)
     generateReport(results, startTime)
-};
+}
 
-run().catch(err=>{
+run().catch(err => {
     errlog(err.message)
     process.exit(1)
-});
+})

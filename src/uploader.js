@@ -1,4 +1,5 @@
 const { sleep } = require('./utils')
+const { errlog } = require('./logger')
 
 const uploadPOI = async (row, apiUrl, apiKey, dryRun) => {
     const body = {
@@ -29,27 +30,34 @@ while (attempt < maxRetries) {
                 'Content-Type': 'application/json',
                 'X-API-Key': apiKey
         },
-            body: JSON.stringify(body)
-        });
-
-        if (res.ok) return { success: true }
-
-        if (res.status === 429 || res.status >= 500) {
-            attempt++
-            const waitMs = 500 * Math.pow(2, attempt)
-            await sleep(waitMs)
-            continue;
-        }
-
-        return { success: false, reason: `HTTP ${res.status}` }
-
-    } catch (err) {
-        attempt++
-        await sleep(500 * Math.pow(2, attempt))
-        continue;
-        }
+        body: JSON.stringify(body)
+    });
+    if (res.ok) return { success: true } // success
+    if (res.status === 400) {
+        return { success: false, reason: `HTTP 400 -bad data, skipping` }
     }
-return { success: false, reason: 'max retries exceeded' }
+    if (res.status === 401) {
+        errlog('Invalid API key. Aborting entire run')
+        process.exit(1)
+    }
+    if (res.status === 429 || res.status >= 500){
+        attempt++
+        const jitter = Math.floor(Math.random() * 50)
+        const waitMs = 250 * Math.pow(2, attempt) + jitter
+        await sleep(waitMs)
+        continue
+    }
+
+    return { success: false, reason:`HTTP ${res.status}` }
+
+} catch (err) {
+    attempt++
+    const jitter = Math.floor(Math.random() * 50)
+    const waitMs = 250 * Math.pow(2, attempt)
+    await sleep(waitMs)
+}
+}
+return { success:false, reason:'max retries exceeded'}
 }
 
 module.exports = { uploadPOI }
